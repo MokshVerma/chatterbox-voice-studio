@@ -34,7 +34,7 @@ The speech models are downloaded later, from inside the app. The installer is no
 SmartScreen may warn: choose **More info -> Run anyway**. Uninstall from Windows Settings; your `voices` folder is kept.
 
 To build the installer yourself: install [Inno Setup 6](https://jrsoftware.org/isdl.php), then run
-`installeruild_installer.bat`. The result is `installer\Output\ChatterboxVoiceStudio-Setup.exe`.
+`installer\build_installer.bat`. The result is `installer\Output\ChatterboxVoiceStudio-Setup.exe`.
 
 ## Install from source
 ```bash
