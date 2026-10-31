@@ -1,0 +1,10 @@
+Chatterbox Voice Studio
+
+Before you continue:
+
+- The installer is small, but it will download about 3-5 GB of components (a private copy of Python, PyTorch and the speech libraries). A console window shows the progress; please keep it open. This can take 10-30 minutes depending on your connection.
+- If you have an NVIDIA graphics card, the GPU version of PyTorch is installed automatically. Otherwise the CPU version is used, which works but is much slower.
+- The speech models themselves (about 3 GB each) are downloaded later, from inside the app, the first time you pick them.
+- No administrator rights are needed. Everything is installed for your user account only.
+- The installer is not code-signed, so Windows SmartScreen may show a warning. Choose "More info", then "Run anyway".
+- Only clone voices you have permission to use.

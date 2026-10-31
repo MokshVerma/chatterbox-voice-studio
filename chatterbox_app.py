@@ -9,6 +9,12 @@ import threading
 import time
 import traceback
 
+# pythonw.exe (used by the installed shortcut) has no console: send output to a log file instead of failing.
+if sys.stdout is None or sys.stderr is None:
+    _log = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.log"), "a", encoding="utf-8", buffering=1)
+    sys.stdout = sys.stdout or _log
+    sys.stderr = sys.stderr or _log
+
 import numpy as np
 import soundfile as sf
 from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal

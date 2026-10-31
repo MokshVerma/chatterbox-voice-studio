@@ -22,7 +22,21 @@ voice cloning. Give it one reference clip and some text, and it speaks the text 
 - Play, save as WAV, and a button to clear temporary preview files
 - Windows, macOS (Apple GPU via MPS) and Linux; NVIDIA GPU via CUDA
 
-## Install
+## Windows installer (easiest)
+Download `ChatterboxVoiceStudio-Setup.exe` and run it. It is a small installer that sets everything up for your user
+account (no administrator rights needed):
+- creates its own private Python, so nothing touches an existing Python installation
+- downloads PyTorch (the **CUDA** build if it finds an NVIDIA GPU, otherwise the CPU build) and the other libraries
+  (about 3-5 GB, 10-30 minutes; a console window shows progress)
+- adds Start Menu entries: the app, and "repair components" (re-run it if a download was interrupted)
+
+The speech models are downloaded later, from inside the app. The installer is not code-signed, so Windows
+SmartScreen may warn: choose **More info -> Run anyway**. Uninstall from Windows Settings; your `voices` folder is kept.
+
+To build the installer yourself: install [Inno Setup 6](https://jrsoftware.org/isdl.php), then run
+`installeruild_installer.bat`. The result is `installer\Output\ChatterboxVoiceStudio-Setup.exe`.
+
+## Install from source
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate      macOS/Linux: source .venv/bin/activate
