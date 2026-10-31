@@ -1,4 +1,4 @@
-"""Chatterbox Turbo - native Windows voice cloning GUI (PySide6)."""
+"""Chatterbox Voice Studio - desktop voice cloning GUI (PySide6)."""
 import os
 import random
 import sys
@@ -25,12 +25,57 @@ TAGS = ["[clear throat]", "[sigh]", "[shush]", "[cough]", "[groan]",
         "[sniff]", "[gasp]", "[chuckle]", "[laugh]"]
 MAX_CHARS = 300
 VOICES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voices")
-MODELS = {
-    "Turbo (350M, best quality, GPU recommended)": False,
-    "Nano (110M, lighter and faster, runs well on CPU)": True,
+BASE = "ResembleAI/chatterbox"
+PATTERNS = ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
+MTL_BASE_FILES = ["ve.pt", "grapheme_mtl_merged_expanded_v1.json", "conds.pt", "Cangjie5_TC.json"]
+
+LANGUAGES = {
+    "ar": "Arabic", "da": "Danish", "de": "German", "el": "Greek", "en": "English", "es": "Spanish",
+    "fi": "Finnish", "fr": "French", "he": "Hebrew", "hi": "Hindi", "it": "Italian", "ja": "Japanese",
+    "ko": "Korean", "ms": "Malay", "nl": "Dutch", "no": "Norwegian", "pl": "Polish", "pt": "Portuguese",
+    "ru": "Russian", "sv": "Swedish", "sw": "Swahili", "tr": "Turkish", "zh": "Chinese",
 }
+SAMPLE_TEXT = {
+    "zh": "你好，今天天气真不错，希望你有一个愉快的周末。",
+    "es": "¡Hola! ¿Cómo estás? Hoy hace un día maravilloso, ¿te apetece dar un paseo?",
+    "pt": "Olá! Como você está? Hoje o dia está lindo, vamos dar um passeio?",
+    "hi": "नमस्ते, आप कैसे हैं? आज मौसम बहुत सुहावना है।",
+    "fr": "Bonjour, comment ça va? Ceci est le modèle de synthèse vocale multilingue Chatterbox.",
+    "de": "Hallo, wie geht es dir? Heute ist ein wunderschöner Tag.",
+}
+
+
+def _pack(model_id, label, repo, t3_file, lang):
+    return dict(id=model_id, label=label, kind="pack", tags=False, lang=lang, repo=repo, t3_file=t3_file,
+                sources=[(BASE, MTL_BASE_FILES), (repo, [t3_file, "s3gen_v3.pt"])],
+                keys=[(BASE, "ve.pt"), (BASE, "grapheme_mtl_merged_expanded_v1.json"), (repo, t3_file), (repo, "s3gen_v3.pt")])
+
+
+MODEL_LIST = [
+    dict(id="turbo", label="Turbo - English, 350M, sound tags, fast (GPU recommended)", kind="turbo", tags=True,
+         sources=[("ResembleAI/chatterbox-turbo", PATTERNS)],
+         keys=[("ResembleAI/chatterbox-turbo", f) for f in ("ve.safetensors", "s3gen_meanflow.safetensors", "t3_turbo_v1.safetensors")]),
+    dict(id="nano", label="Nano - English, 110M, sound tags, light (runs well on CPU)", kind="nano", tags=True,
+         sources=[("ResembleAI/chatterbox-nano", PATTERNS)],
+         keys=[("ResembleAI/chatterbox-nano", f) for f in ("ve.safetensors", "s3gen_meanflow.safetensors", "t3_nano_v1.safetensors")]),
+    dict(id="orig", label="Chatterbox - English, 500M, expressive (exaggeration / CFG)", kind="orig", tags=False,
+         sources=[(BASE, ["ve.safetensors", "t3_cfg.safetensors", "s3gen.safetensors", "tokenizer.json", "conds.pt"])],
+         keys=[(BASE, f) for f in ("ve.safetensors", "t3_cfg.safetensors", "s3gen.safetensors", "tokenizer.json")]),
+    dict(id="mtl", label="Multilingual V3 - 23 languages, 500M", kind="mtl", tags=False, lang="choice",
+         sources=[(BASE, ["ve.pt", "t3_mtl23ls_v3.safetensors", "s3gen.pt", "grapheme_mtl_merged_expanded_v1.json", "conds.pt", "Cangjie5_TC.json"])],
+         keys=[(BASE, f) for f in ("ve.pt", "t3_mtl23ls_v3.safetensors", "s3gen.pt", "grapheme_mtl_merged_expanded_v1.json")]),
+    _pack("pack_zh", "Language Pack - Chinese (Mandarin)", "ResembleAI/Chatterbox-Multilingual-zh-cmn", "t3_zh_cmn.safetensors", "zh"),
+    _pack("pack_es_mx", "Language Pack - Spanish (Latin America)", "ResembleAI/Chatterbox-Multilingual-es-mx-latam", "t3_es_mx_latam.safetensors", "es"),
+    _pack("pack_es_es", "Language Pack - Spanish (Spain)", "ResembleAI/Chatterbox-Multilingual-es-es", "t3_es_es.safetensors", "es"),
+    _pack("pack_pt_br", "Language Pack - Portuguese (Brazil)", "ResembleAI/Chatterbox-Multilingual-pt-br", "t3_pt_br.safetensors", "pt"),
+    _pack("pack_pt_pt", "Language Pack - Portuguese (Portugal)", "ResembleAI/Chatterbox-Multilingual-pt-pt", "t3_pt_pt.safetensors", "pt"),
+    _pack("pack_hi", "Language Pack - Hindi", "ResembleAI/Chatterbox-Multilingual-hi", "t3_hi.safetensors", "hi"),
+]
+MODEL_BY_ID = {m["id"]: m for m in MODEL_LIST}
 DEFAULT_TEXT = ("Oh, that's hilarious! [chuckle] Um anyway, we do have a new model in "
                 "store. Would you like me to get some prices for you?")
+PLAIN_TEXT = ("Oh, that's hilarious! Um anyway, we do have a new model in "
+              "store. Would you like me to get some prices for you?")
 
 STYLE = """
 * { font-family: 'Segoe UI Variable', 'Segoe UI'; font-size: 10pt; color: #e6e8ee; }
@@ -96,19 +141,69 @@ class Waveform(QWidget):
             p.drawLine(int(x), int(h / 2 - half), int(x), int(h / 2 + half))
 
 
-REPOS = {False: "ResembleAI/chatterbox-turbo", True: "ResembleAI/chatterbox-nano"}
-PATTERNS = ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
-
-
-def key_files(nano):
-    return ["ve.safetensors", "s3gen_meanflow.safetensors",
-            "t3_nano_v1.safetensors" if nano else "t3_turbo_v1.safetensors"]
-
-
-def model_ready(nano):
+def model_ready(entry):
     """True when the key weight files for this model are fully in the local HF cache."""
     from huggingface_hub import try_to_load_from_cache
-    return all(isinstance(try_to_load_from_cache(REPOS[nano], f), str) for f in key_files(nano))
+    return all(isinstance(try_to_load_from_cache(repo, f), str) for repo, f in entry["keys"])
+
+
+def pick_device():
+    import torch
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def load_language_pack(entry, device):
+    """Single Language Pack: the pack's own T3 + V3 S3Gen weights, with the shared voice encoder/tokenizer/conds.
+    Mirrors ChatterboxMultilingualTTS.from_local, but takes each file from its own repo."""
+    import torch
+    import chatterbox.mtl_tts as m
+    from huggingface_hub import hf_hub_download
+    ml = torch.device("cpu") if device in ("cpu", "mps") else None
+    ve_path = hf_hub_download(BASE, "ve.pt")
+    tok_path = hf_hub_download(BASE, "grapheme_mtl_merged_expanded_v1.json")
+    conds_path = hf_hub_download(BASE, "conds.pt")
+    t3_path = hf_hub_download(entry["repo"], entry["t3_file"])
+    s3_path = hf_hub_download(entry["repo"], "s3gen_v3.pt")
+
+    ve = m.VoiceEncoder()
+    ve.load_state_dict(torch.load(ve_path, map_location=ml, weights_only=True))
+    ve.to(device).eval()
+    t3 = m.T3(m.T3Config.multilingual())
+    t3_state = m.load_safetensors(t3_path)
+    if "model" in t3_state:
+        t3_state = t3_state["model"][0]
+    t3.load_state_dict(t3_state)
+    t3.to(device).eval()
+    s3gen = m.S3Gen()
+    res = s3gen.load_state_dict(torch.load(s3_path, map_location=ml, weights_only=True), strict=False)
+    # V3 checkpoints omit the tokenizer's fixed mel-filter/window tables; they are rebuilt when S3Gen is created
+    missing = [k for k in res.missing_keys if not k.startswith("tokenizer.")]
+    if missing or res.unexpected_keys:
+        raise RuntimeError(f"Decoder weights do not match this Chatterbox version (missing {len(missing)}, "
+                           f"unexpected {len(res.unexpected_keys)} tensors).")
+    s3gen.to(device).eval()
+    tokenizer = m.MTLTokenizer(tok_path)
+    conds = m.Conditionals.load(conds_path, map_location=ml).to(device)
+    return m.ChatterboxMultilingualTTS(t3, s3gen, ve, tokenizer, device, conds=conds)
+
+
+def load_model(entry, device):
+    kind = entry["kind"]
+    if kind in ("turbo", "nano"):
+        from chatterbox.tts_turbo import ChatterboxTurboTTS
+        patch_float32(ChatterboxTurboTTS)
+        return ChatterboxTurboTTS.from_pretrained(device, nano=(kind == "nano"))
+    if kind == "orig":
+        from chatterbox.tts import ChatterboxTTS
+        return ChatterboxTTS.from_pretrained(device)
+    if kind == "mtl":
+        from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+        return ChatterboxMultilingualTTS.from_pretrained(device, t3_model="v3")
+    return load_language_pack(entry, device)
 
 
 def patch_float32(cls):
@@ -130,9 +225,9 @@ class DownloadWorker(QObject):
     finished = Signal()
     failed = Signal(str)
 
-    def __init__(self, nano):
+    def __init__(self, entry):
         super().__init__()
-        self.nano = nano
+        self.entry = entry
 
     def run(self):
         import fnmatch
@@ -143,13 +238,14 @@ class DownloadWorker(QObject):
             hfc.HF_HUB_DISABLE_XET = True  # plain HTTP download gives reliable byte progress
             from huggingface_hub import HfApi, snapshot_download, try_to_load_from_cache
             from tqdm.auto import tqdm
-            repo = REPOS[self.nano]
-            info = HfApi().model_info(repo, files_metadata=True)
+            sources = self.entry["sources"]
             total = 0
-            for f in info.siblings:
-                if any(fnmatch.fnmatch(f.rfilename, pt) for pt in PATTERNS):
-                    if not isinstance(try_to_load_from_cache(repo, f.rfilename), str):
-                        total += f.size or 0
+            for repo, patterns in sources:
+                info = HfApi().model_info(repo, files_metadata=True)
+                for f in info.siblings:
+                    if any(fnmatch.fnmatch(f.rfilename, pt) for pt in patterns):
+                        if not isinstance(try_to_load_from_cache(repo, f.rfilename), str):
+                            total += f.size or 0
             total = max(total, 1)
             lock = threading.Lock()
             state = {"done": 0, "t0": time.time(), "last": 0.0}
@@ -175,8 +271,9 @@ class DownloadWorker(QObject):
                                 emit(state["done"], total, state["done"] / max(now - state["t0"], 1e-3))
                     return r
 
-            snapshot_download(repo_id=repo, allow_patterns=PATTERNS, tqdm_class=Bar,
-                              token=os.getenv("HF_TOKEN") or None)
+            for repo, patterns in sources:
+                snapshot_download(repo_id=repo, allow_patterns=patterns, tqdm_class=Bar,
+                                  token=os.getenv("HF_TOKEN") or None)
             self.progress.emit(total, total, 0.0)
             self.finished.emit()
         except Exception as e:  # noqa: BLE001
@@ -199,29 +296,27 @@ class Worker(QObject):
         try:
             import torch
             st = self.state
-            nano = self.params["nano"]
-            if st.get("model") is None or st.get("nano") != nano:
+            entry = MODEL_BY_ID[self.params["model"]]
+            kind = entry["kind"]
+            if st.get("model") is None or st.get("model_id") != entry["id"]:
                 st["model"] = None
                 st["cond_key"] = None
+                import gc
+                gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                self.status.emit(f"Loading Chatterbox {'Nano' if nano else 'Turbo'} into memory (about 10-30 seconds)...")
-                from chatterbox.tts_turbo import ChatterboxTurboTTS
-                patch_float32(ChatterboxTurboTTS)
-                if torch.cuda.is_available():
-                    device = "cuda"
-                elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-                    device = "mps"
-                else:
-                    device = "cpu"
-                st["model"] = ChatterboxTurboTTS.from_pretrained(device, nano=nano)
-                st["nano"] = nano
+                self.status.emit(f"Loading {entry['label'].split(' - ')[0]} into memory (about 10-30 seconds)...")
+                st["model"] = load_model(entry, pick_device())
+                st["model_id"] = entry["id"]
             model = st["model"]
             norm = self.params["norm_loudness"]
-            key = (self.ref_path, os.path.getmtime(self.ref_path), norm)
+            key = (entry["id"], self.ref_path, os.path.getmtime(self.ref_path), norm if kind in ("turbo", "nano") else None)
             if st.get("cond_key") != key:
                 self.status.emit("Analysing reference voice (done once per sample)...")
-                model.prepare_conditionals(self.ref_path, norm_loudness=norm)
+                if kind in ("turbo", "nano"):
+                    model.prepare_conditionals(self.ref_path, norm_loudness=norm)
+                else:
+                    model.prepare_conditionals(self.ref_path, exaggeration=self.params["exaggeration"])
                 st["cond_key"] = key
             seed = self.params["seed"]
             if seed == 0:
@@ -232,14 +327,18 @@ class Worker(QObject):
             random.seed(seed)
             np.random.seed(seed % (2**32))
             self.status.emit(f"Generating speech (seed {seed})...")
-            wav = model.generate(
-                self.text,
-                temperature=self.params["temperature"],
-                top_p=self.params["top_p"],
-                top_k=self.params["top_k"],
-                repetition_penalty=self.params["repetition_penalty"],
-                norm_loudness=norm,
-            )
+            p = self.params
+            if kind in ("turbo", "nano"):
+                wav = model.generate(self.text, temperature=p["temperature"], top_p=p["top_p"], top_k=p["top_k"],
+                                     repetition_penalty=p["repetition_penalty"], norm_loudness=norm)
+            elif kind == "orig":
+                wav = model.generate(self.text, temperature=p["temperature"], top_p=p["top_p"], min_p=p["min_p"],
+                                     repetition_penalty=p["repetition_penalty"],
+                                     exaggeration=p["exaggeration"], cfg_weight=p["cfg_weight"])
+            else:
+                wav = model.generate(self.text, language_id=p["lang"], temperature=p["temperature"], top_p=p["top_p"],
+                                     min_p=p["min_p"], repetition_penalty=p["repetition_penalty"],
+                                     exaggeration=p["exaggeration"], cfg_weight=p["cfg_weight"])
             # plain NumPy copy: the torch-backed buffer must be freed on this thread, not the UI thread
             self.done.emit(np.array(wav.squeeze().cpu().numpy(), dtype=np.float32, copy=True), model.sr)
         except Exception as e:  # noqa: BLE001
@@ -266,7 +365,7 @@ def label(text, name=None):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Chatterbox Turbo Voice Studio")
+        self.setWindowTitle("Chatterbox Voice Studio")
         self.resize(900, 860)
         self.state = {}
         self.ref_path = None
@@ -286,8 +385,8 @@ class MainWindow(QMainWindow):
         main.setContentsMargins(24, 20, 24, 20)
         main.setSpacing(14)
 
-        main.addWidget(label("Chatterbox Turbo Voice Studio", "title"))
-        main.addWidget(label("Clone a voice from one sample, then make it speak - with laughs, sighs and more.", "sub"))
+        main.addWidget(label("Chatterbox Voice Studio", "title"))
+        main.addWidget(label("Clone a voice from one sample, then make it speak - in English or 20+ languages.", "sub"))
 
         # Reference
         c1, l1 = card()
@@ -322,7 +421,8 @@ class MainWindow(QMainWindow):
         cm, lm = card()
         lm.addWidget(label("Model", "section"))
         self.model_box = QComboBox()
-        self.model_box.addItems(list(MODELS))
+        for m in MODEL_LIST:
+            self.model_box.addItem(m["label"], m["id"])
         mrow = QHBoxLayout()
         mrow.addWidget(self.model_box, 1)
         self.dl_btn = QPushButton("Download model")
@@ -340,7 +440,20 @@ class MainWindow(QMainWindow):
         self.dl_bar.hide()
         lm.addWidget(self.dl_bar)
         self.downloading = False
-        self.model_box.currentIndexChanged.connect(self.refresh_model_state)
+        self.lang_box = QComboBox()
+        for code, name in LANGUAGES.items():
+            self.lang_box.addItem(f"{name} ({code})", code)
+        self.lang_box.setCurrentIndex(self.lang_box.findData("en"))
+        self.lang_row = QWidget()
+        lr = QHBoxLayout(self.lang_row)
+        lr.setContentsMargins(0, 0, 0, 0)
+        lr.addWidget(label("Language", "hint"))
+        lr.addWidget(self.lang_box, 1)
+        lm.addWidget(self.lang_row)
+        self._auto_text = DEFAULT_TEXT
+        self._family = None
+        self.model_box.currentIndexChanged.connect(self.on_model_changed)
+        self.lang_box.currentIndexChanged.connect(self.on_language_changed)
         main.addWidget(cm)
 
         # Text
@@ -350,7 +463,9 @@ class MainWindow(QMainWindow):
         self.text.setMinimumHeight(120)
         self.text.textChanged.connect(self.update_count)
         l2.addWidget(self.text)
-        tagrow = QGridLayout()
+        self.tag_widget = QWidget()
+        tagrow = QGridLayout(self.tag_widget)
+        tagrow.setContentsMargins(0, 0, 0, 0)
         tagrow.setSpacing(6)
         for i, t in enumerate(TAGS):
             b = QPushButton(t)
@@ -358,7 +473,9 @@ class MainWindow(QMainWindow):
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(lambda _=False, tag=t: self.insert_tag(tag))
             tagrow.addWidget(b, 0, i)
-        l2.addLayout(tagrow)
+        l2.addWidget(self.tag_widget)
+        self.tag_hint = label("Sound tags like [laugh] or [sigh] only work with the Turbo and Nano models.", "hint")
+        l2.addWidget(self.tag_hint)
         self.count = label("", "hint")
         l2.addWidget(self.count)
         main.addWidget(c2)
@@ -366,21 +483,49 @@ class MainWindow(QMainWindow):
         # Advanced
         c3, l3 = card()
         l3.addWidget(label("Advanced", "section"))
-        g = QGridLayout()
-        g.setHorizontalSpacing(16)
+
+        def field(name, widget):
+            w = QWidget()
+            v = QVBoxLayout(w)
+            v.setContentsMargins(0, 0, 0, 0)
+            v.setSpacing(2)
+            v.addWidget(label(name, "hint"))
+            v.addWidget(widget)
+            return w
+
         self.seed = QSpinBox(); self.seed.setRange(0, 2**31 - 1)
         self.temp = QDoubleSpinBox(); self.temp.setRange(0.05, 2.0); self.temp.setSingleStep(0.05); self.temp.setValue(0.8)
         self.top_p = QDoubleSpinBox(); self.top_p.setRange(0.0, 1.0); self.top_p.setSingleStep(0.01); self.top_p.setValue(0.95)
-        self.top_k = QSpinBox(); self.top_k.setRange(0, 1000); self.top_k.setSingleStep(10); self.top_k.setValue(1000)
         self.rep = QDoubleSpinBox(); self.rep.setRange(1.0, 2.0); self.rep.setSingleStep(0.05); self.rep.setValue(1.2)
+        common = QHBoxLayout()
+        for name, w in (("Seed (0 = random)", self.seed), ("Temperature", self.temp), ("Top P", self.top_p),
+                        ("Repetition penalty", self.rep)):
+            common.addWidget(field(name, w))
+        l3.addLayout(common)
+
+        # Turbo / Nano only
+        self.top_k = QSpinBox(); self.top_k.setRange(0, 1000); self.top_k.setSingleStep(10); self.top_k.setValue(1000)
         self.norm = QCheckBox("Normalize loudness (-27 LUFS)"); self.norm.setChecked(True)
-        fields = [("Seed (0 = random)", self.seed), ("Temperature", self.temp), ("Top P", self.top_p),
-                  ("Top K", self.top_k), ("Repetition penalty", self.rep)]
-        for i, (name, w) in enumerate(fields):
-            g.addWidget(label(name, "hint"), 0, i)
-            g.addWidget(w, 1, i)
-        g.addWidget(self.norm, 2, 0, 1, 3)
-        l3.addLayout(g)
+        self.turbo_opts = QWidget()
+        tl = QHBoxLayout(self.turbo_opts)
+        tl.setContentsMargins(0, 0, 0, 0)
+        tl.addWidget(field("Top K", self.top_k))
+        tl.addWidget(self.norm)
+        tl.addStretch(1)
+        l3.addWidget(self.turbo_opts)
+
+        # Chatterbox / Multilingual / Language Packs
+        self.exag = QDoubleSpinBox(); self.exag.setRange(0.25, 2.0); self.exag.setSingleStep(0.05); self.exag.setValue(0.5)
+        self.cfg = QDoubleSpinBox(); self.cfg.setRange(0.0, 1.0); self.cfg.setSingleStep(0.05); self.cfg.setValue(0.5)
+        self.min_p = QDoubleSpinBox(); self.min_p.setRange(0.0, 1.0); self.min_p.setSingleStep(0.01); self.min_p.setValue(0.05)
+        self.expr_opts = QWidget()
+        el = QHBoxLayout(self.expr_opts)
+        el.setContentsMargins(0, 0, 0, 0)
+        el.addWidget(field("Exaggeration (0.5 = neutral)", self.exag))
+        el.addWidget(field("CFG / pace (lower = slower)", self.cfg))
+        el.addWidget(field("Min P", self.min_p))
+        el.addStretch(1)
+        l3.addWidget(self.expr_opts)
         main.addWidget(c3)
 
         # Generate + output
@@ -444,6 +589,7 @@ class MainWindow(QMainWindow):
         self.engine = threading.Thread(target=engine_loop, daemon=True, name="chatterbox-engine")
         self.engine.start()
         self.model_ready = False
+        self.apply_model_ui()
         self.refresh_model_state()
         self.update_count()
 
@@ -555,13 +701,58 @@ class MainWindow(QMainWindow):
         self.refresh_voices(select=path)
         self.load_ref(path)
 
+    def current_entry(self):
+        return MODEL_BY_ID[self.model_box.currentData()]
+
+    def sample_for(self, entry, lang):
+        if entry["tags"]:
+            return DEFAULT_TEXT
+        return SAMPLE_TEXT.get(lang, PLAIN_TEXT)
+
+    def swap_sample_text(self, entry, lang):
+        """Replace the text with a fitting sample, but only if the user hasn't edited the previous sample."""
+        current = self.text.toPlainText()
+        if current.strip() == "" or current == self._auto_text:
+            self._auto_text = self.sample_for(entry, lang)
+            self.text.setPlainText(self._auto_text)
+
+    def apply_model_ui(self):
+        entry = self.current_entry()
+        kind = entry["kind"]
+        tagged = entry["tags"]
+        self.tag_widget.setVisible(tagged)
+        self.tag_hint.setVisible(not tagged)
+        self.turbo_opts.setVisible(tagged)
+        self.expr_opts.setVisible(not tagged)
+        has_lang = kind in ("mtl", "pack")
+        self.lang_row.setVisible(has_lang)
+        if kind == "pack":
+            self.lang_box.blockSignals(True)
+            self.lang_box.setCurrentIndex(self.lang_box.findData(entry["lang"]))
+            self.lang_box.blockSignals(False)
+        self.lang_box.setEnabled(kind == "mtl")
+        family = "tagged" if tagged else "expressive"
+        if family != self._family:  # sensible defaults per model family
+            self.top_p.setValue(0.95 if tagged else 1.0)
+            self._family = family
+        self.swap_sample_text(entry, self.lang_box.currentData() if has_lang else "en")
+
+    def on_model_changed(self):
+        self.apply_model_ui()
+        self.refresh_model_state()
+
+    def on_language_changed(self):
+        entry = self.current_entry()
+        if entry["kind"] == "mtl":
+            self.swap_sample_text(entry, self.lang_box.currentData())
+
     def refresh_model_state(self):
         if self.downloading:
             return
-        nano = MODELS[self.model_box.currentText()]
+        entry = self.current_entry()
         self.model_box.setEnabled(True)
         try:
-            ready = model_ready(nano)
+            ready = model_ready(entry)
         except Exception:  # noqa: BLE001
             ready = False
         self.model_ready = ready
@@ -571,7 +762,7 @@ class MainWindow(QMainWindow):
         if ready:
             self.model_status.setText("Downloaded and ready.")
         else:
-            self.model_status.setText("Not downloaded yet. Download it once (about 1-4 GB) before generating.")
+            self.model_status.setText("Not downloaded yet. Download it once (about 3 GB) before generating.")
         self.gen.setEnabled(ready)
         self.gen.setText("Generate speech" if ready else "Download the model first")
 
@@ -615,7 +806,7 @@ class MainWindow(QMainWindow):
         super().closeEvent(e)
 
     def start_download(self):
-        nano = MODELS[self.model_box.currentText()]
+        entry = self.current_entry()
         self.downloading = True
         self.model_box.setEnabled(False)
         self.dl_btn.setEnabled(False)
@@ -624,7 +815,7 @@ class MainWindow(QMainWindow):
         self.dl_bar.show()
         self.model_status.setText("Connecting to Hugging Face...")
         self.dl_thread = QThread()
-        self.dl_worker = DownloadWorker(nano)
+        self.dl_worker = DownloadWorker(entry)
         self.dl_worker.moveToThread(self.dl_thread)
         self.dl_thread.started.connect(self.dl_worker.run)
         self.dl_worker.progress.connect(self.on_dl_progress)
@@ -669,10 +860,12 @@ class MainWindow(QMainWindow):
         if len(text) > MAX_CHARS:
             QMessageBox.information(self, "Too long", f"Please keep the text under {MAX_CHARS} characters.")
             return
+        entry = self.current_entry()
         params = dict(seed=self.seed.value(), temperature=self.temp.value(), top_p=self.top_p.value(),
                       top_k=self.top_k.value(), repetition_penalty=self.rep.value(),
-                      norm_loudness=self.norm.isChecked(),
-                      nano=MODELS[self.model_box.currentText()])
+                      norm_loudness=self.norm.isChecked(), model=entry["id"],
+                      exaggeration=self.exag.value(), cfg_weight=self.cfg.value(), min_p=self.min_p.value(),
+                      lang=entry.get("lang") if entry["kind"] == "pack" else self.lang_box.currentData())
         self.set_busy(True)
         self.player.stop()
         self.jobs.put((self.ref_path, text, params))
